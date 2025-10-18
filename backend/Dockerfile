@@ -18,9 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 백엔드 소스 코드 복사
 COPY . .
 
-# 템플릿 파일 복사 (프로젝트 루트에서)
-COPY ../거래명세서_템플릿.xlsx /app/거래명세서_템플릿.xlsx
-
 # 데이터 디렉토리 생성
 RUN mkdir -p /app/data/uploads
 
