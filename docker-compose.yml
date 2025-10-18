@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: partmatch-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # 데이터 영속성을 위한 볼륨 마운트
+      - ./data:/app/data
+      - ./거래명세서_템플릿.xlsx:/app/거래명세서_템플릿.xlsx:ro
+    environment:
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - FUZZY_MATCH_THRESHOLD=70
+      - MAX_SUGGESTIONS=10
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - partmatch-network
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: partmatch-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - partmatch-network
+
+networks:
+  partmatch-network:
+    driver: bridge
+
+volumes:
+  partmatch-data:
+    driver: local

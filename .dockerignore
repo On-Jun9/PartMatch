@@ -1,0 +1,73 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+DEPLOYMENT.md
+hist/
+*.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+*.egg
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database (데이터는 볼륨 마운트로 관리)
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Logs
+*.log
+logs/
+
+# Private files
+hist/
+거래명세서 양식 엑셀*.xlsx
+!거래명세서_템플릿.xlsx
+!거래명세서_샘플.xlsx
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
