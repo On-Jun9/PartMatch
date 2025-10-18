@@ -986,7 +986,7 @@ export function PartMappingOverview() {
                           <td colSpan={4} className="px-5 pb-6 pt-2">
                             <PartManagementPanel
                               part={expandedPart}
-                              parts={data}
+                              parts={data ?? []}
                               onClose={() => setExpandedPartId(null)}
                               onRefresh={() => refetch()}
                             />
