@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     # 프로젝트 루트
-    PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
+    PROJECT_ROOT: Path = Path(__file__).parent.parent
 
     # 데이터베이스
     @property
