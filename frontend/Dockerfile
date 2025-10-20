@@ -29,9 +29,5 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # 포트 노출
 EXPOSE 80
 
-# 헬스체크
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
-
 # Nginx 실행
 CMD ["nginx", "-g", "daemon off;"]
