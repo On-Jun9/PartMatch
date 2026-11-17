@@ -1,28 +1,49 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from fastapi.responses import StreamingResponse
-from typing import List, Optional
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from pathlib import Path
 import shutil
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
 from urllib.parse import quote
+from uuid import uuid4
 
-from ..db import get_db, crud
-from ..excel.parser import ExcelParser
-from ..excel.generator import ExcelGenerator
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
+
 from ..config import settings
+from ..db import crud, get_db
+from ..excel.generator import ExcelGenerator
+from ..excel.parser import ExcelParser
 from ..ml.fuzzy_matcher import fuzzy_matcher
 
 router = APIRouter()
 
+
+@router.get("/excel/fonts/{font_name}")
+async def invoice_font(font_name: str):
+    """Serve locally supplied template fonts; never arbitrary filesystem paths."""
+    if font_name not in {"dotum.woff2", "gulim.woff2"}:
+        raise HTTPException(status_code=404, detail="글꼴을 찾을 수 없습니다.")
+    path = settings.PROJECT_ROOT / "data" / "fonts" / font_name
+    if not path.is_file():
+        raise HTTPException(
+            status_code=404, detail="템플릿 글꼴이 설치되지 않았습니다."
+        )
+    return FileResponse(
+        path, media_type="font/woff2", headers={"Cache-Control": "no-cache"}
+    )
+
+
 class PartSuggestion(BaseModel):
     """부품명 추천 모델"""
+
     name: str
     score: float
     usage_count: int
     last_used: str | None = None
     is_confirmed: bool
+
 
 class PartSearchRequest(BaseModel):
     """부품명 검색 요청"""
@@ -417,6 +438,8 @@ async def generate_excel(request: GenerateExcelRequest):
     거래명세서 엑셀 파일 생성 및 다운로드
     - 선택된 부품 목록으로 거래명세서 엑셀 파일 생성
     """
+    if not request.items or len(request.items) > 24:
+        raise HTTPException(status_code=400, detail="품목을 1개 이상 24개 이하로 입력해주세요.")
     # 템플릿 파일 확인
     if not settings.TEMPLATE_PATH.exists():
         raise HTTPException(
@@ -427,7 +450,7 @@ async def generate_excel(request: GenerateExcelRequest):
     # 출력 파일명 생성 (타임스탬프 포함)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_filename = f"거래명세서_{timestamp}.xlsx"
-    output_path = settings.UPLOAD_DIR / output_filename
+    output_path = settings.UPLOAD_DIR / f"{uuid4().hex}.xlsx"
 
     try:
         # 날짜 파싱 (YYYY-MM-DD 형식 -> datetime)
@@ -462,11 +485,14 @@ async def generate_excel(request: GenerateExcelRequest):
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
                 "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
-            }
+            },
+            background=BackgroundTask(output_path.unlink, missing_ok=True),
         )
 
         return response
 
+    except HTTPException:
+        raise
     except FileNotFoundError as e:
         # 템플릿 파일을 찾을 수 없는 경우
         import logging
@@ -486,7 +512,3 @@ async def generate_excel(request: GenerateExcelRequest):
         if output_path.exists():
             output_path.unlink()
         raise HTTPException(status_code=500, detail=f"엑셀 생성 실패: {str(e)}")
-    finally:
-        # 응답 후 파일 삭제는 백그라운드에서 처리
-        # (StreamingResponse가 완료된 후 삭제되어야 하므로 여기서는 삭제하지 않음)
-        pass

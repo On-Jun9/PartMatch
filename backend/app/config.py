@@ -1,9 +1,16 @@
-from pydantic_settings import BaseSettings
 from pathlib import Path
+
+from pydantic_settings import BaseSettings
+
+_backend_root = Path(__file__).resolve().parents[1]
+_project_root = (
+    _backend_root.parent if _backend_root.name == "backend" else _backend_root
+)
+
 
 class Settings(BaseSettings):
     # 프로젝트 루트
-    PROJECT_ROOT: Path = Path(__file__).parent.parent
+    PROJECT_ROOT: Path = _project_root
 
     # 데이터베이스
     @property
@@ -25,6 +32,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
 
 settings = Settings()
 

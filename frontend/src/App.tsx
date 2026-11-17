@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PartAutocomplete } from './components/PartAutocomplete';
 import { PartMappingOverview } from './components/PartMappingOverview';
+import { InvoicePreviewBoundary } from './components/InvoicePreviewBoundary';
 import { partApi, excelApi, type PartItem } from './api/client';
 
+const InvoicePreviewModal = lazy(() => import('./components/InvoicePreviewModal').then((module) => ({ default: module.InvoicePreviewModal })));
 const queryClient = new QueryClient();
 
 type ActiveTab = 'entry' | 'overview';
@@ -19,6 +21,8 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('entry');
   const [isCreatingPart, setIsCreatingPart] = useState(false);
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [excelBlob, setExcelBlob] = useState<Blob | null>(null);
   const [entryMessage, setEntryMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const extractErrorMessage = (error: unknown): string => {
@@ -97,7 +101,11 @@ function AppContent() {
     setEntryMessage(null);
   };
 
-  const handleGenerateExcel = async () => {
+  const handlePreview = async () => {
+    if (selectedParts.length > 24) {
+      setEntryMessage({ type: 'error', text: '현재 거래명세서 양식에는 품목을 24개까지 넣을 수 있습니다. 나누어 작성해주세요.' });
+      return;
+    }
     setIsGeneratingExcel(true);
     setEntryMessage(null);
 
@@ -109,28 +117,33 @@ function AppContent() {
         invoice_date: invoiceDate || undefined,
       });
 
-      // Blob을 URL로 변환
-      const url = window.URL.createObjectURL(blob);
-
-      // 임시 링크 생성하여 다운로드
-      const link = document.createElement('a');
-      link.href = url;
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      link.download = `거래명세서_${timestamp}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-
-      // 정리
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      setEntryMessage({ type: 'success', text: '엑셀 파일이 다운로드되었습니다.' });
+      // Blob 저장 및 미리보기 모달 열기
+      setExcelBlob(blob);
+      setShowPreview(true);
     } catch (error) {
       const message = extractErrorMessage(error);
       setEntryMessage({ type: 'error', text: `엑셀 생성 실패: ${message}` });
     } finally {
       setIsGeneratingExcel(false);
     }
+  };
+
+  const handleDownloadExcel = () => {
+    if (!excelBlob) return;
+
+    // 저장된 Blob 다운로드
+    const url = window.URL.createObjectURL(excelBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    link.download = `거래명세서_${timestamp}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    setEntryMessage({ type: 'success', text: '엑셀 파일이 다운로드되었습니다.' });
+    setShowPreview(false);
   };
 
   return (
@@ -344,23 +357,32 @@ function AppContent() {
               <div className="mt-6 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void handleGenerateExcel()}
-                  disabled={isGeneratingExcel}
+                  onClick={() => void handlePreview()}
+                  disabled={selectedParts.length === 0 || isGeneratingExcel}
                   className="rounded-lg bg-green-500 px-6 py-2 text-sm font-semibold text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:bg-green-300"
                 >
-                  {isGeneratingExcel ? '생성 중...' : '엑셀 생성'}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg bg-gray-500 px-6 py-2 text-sm font-semibold text-white hover:bg-gray-600"
-                >
-                  인쇄
+                  {isGeneratingExcel ? '생성 중...' : '미리보기'}
                 </button>
               </div>
             </div>
           </div>
         ) : (
           <PartMappingOverview />
+        )}
+
+        {/* 거래명세서 미리보기 모달 */}
+        {showPreview && (
+          <InvoicePreviewBoundary onClose={() => setShowPreview(false)} onDownload={handleDownloadExcel}>
+            <Suspense fallback={<div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-white/95">미리보기를 불러오고 있습니다…</div>}>
+              <InvoicePreviewModal
+                isOpen={showPreview}
+                onClose={() => setShowPreview(false)}
+                onDownload={handleDownloadExcel}
+                excelBlob={excelBlob}
+                isLoading={isGeneratingExcel}
+              />
+            </Suspense>
+          </InvoicePreviewBoundary>
         )}
       </div>
     </div>
